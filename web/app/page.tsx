@@ -17,18 +17,27 @@ export default function Page() {
 
   const handleConnect = async () => {
     try {
+      setLog(prev => [`🔍 开始连接钱包...`, ...prev])
+      console.log('Available connectors:', connectors)
+      setLog(prev => [`可用连接器: ${connectors.map(c => `${c.name}(${c.id})`).join(', ')}`, ...prev])
+      
       if (connectors.length === 0) {
         alert('⚠️ 未检测到钱包，请安装 MetaMask 或其他钱包插件')
-        setLog(prev => ['No connectors available', ...prev])
+        setLog(prev => ['❌ 无可用连接器', ...prev])
         return
       }
+      
       // Try injected first (MetaMask/wallet browser); fallback to first available
       const connector = connectors.find(c => c.id === 'injected' || c.type === 'injected') || connectors[0]
+      setLog(prev => [`🔗 使用连接器: ${connector.name} (${connector.id})`, ...prev])
+      console.log('Using connector:', connector)
+      
       await connect({ connector })
+      setLog(prev => [`✅ 连接成功!`, ...prev])
     } catch (e: any) {
       const errorMsg = String(e?.message || e)
       console.error('Connect error:', e)
-      setLog(prev => [`Connect error: ${errorMsg}`, ...prev])
+      setLog(prev => [`❌ 连接错误: ${errorMsg}`, ...prev])
       
       if (errorMsg.includes('user rejected') || errorMsg.includes('User rejected')) {
         alert('❌ 连接已取消')
@@ -49,11 +58,15 @@ export default function Page() {
   const { data: entranceFee, error: feeError, isLoading: feeLoading } = useReadContract({ abi: abi as any, address: CONTRACT_ADDRESS, functionName: 'entranceFee' })
 
   useEffect(() => {
-    const msg = `Contract: ${CONTRACT_ADDRESS || 'UNDEFINED'} (Native tBNB payment)`
+    const msg = `📜 合约地址: ${CONTRACT_ADDRESS || 'UNDEFINED'} (Native tBNB)`
     setLog(prev => [msg, ...prev])
     if (!CONTRACT_ADDRESS) {
-      setLog(prev => ['ERROR: CONTRACT_ADDRESS is undefined - check .env.local and restart dev server', ...prev])
+      setLog(prev => ['❌ ERROR: CONTRACT_ADDRESS 未定义 - 检查 .env.local', ...prev])
     }
+    
+    // 显示当前环境信息
+    setLog(prev => [`🌐 当前环境: ${typeof window !== 'undefined' ? window.location.origin : 'Server'} `, ...prev])
+    setLog(prev => [`🔗 用户代理: ${typeof window !== 'undefined' ? navigator.userAgent.slice(0, 80) + '...' : 'N/A'}`, ...prev])
   }, [])
 
   // Fetch historical messages on mount and poll every 3 seconds
@@ -87,8 +100,27 @@ export default function Page() {
   }, [])
 
   useEffect(() => {
-    if (feeError) setLog(prev => [`Fee read error: ${feeError.message}`, ...prev])
+    if (feeError) setLog(prev => [`❌ 入场费读取错误: ${feeError.message}`, ...prev])
   }, [feeError])
+  
+  // 监控连接状态变化
+  useEffect(() => {
+    if (isConnected && address) {
+      setLog(prev => [`✅ 钱包已连接: ${address}`, ...prev])
+    } else if (!isConnected) {
+      setLog(prev => [`🔌 钱包未连接`, ...prev])
+    }
+  }, [isConnected, address])
+  
+  // 监控链状态
+  useEffect(() => {
+    if (chain) {
+      setLog(prev => [`🔗 当前链: ${chain.name} (ID: ${chain.id})`, ...prev])
+      if (wrongChain) {
+        setLog(prev => [`⚠️ 错误的链！需要 BSC Testnet (97)`, ...prev])
+      }
+    }
+  }, [chain, wrongChain])
 
   useEffect(() => {
     if (entranceFee) setLog(prev => [`entranceFee loaded: ${entranceFee.toString()}`, ...prev])
@@ -494,12 +526,21 @@ export default function Page() {
       </div> */}
 
 
-      {/* {log.length>0 && (
+      {log.length>0 && (
         <div className="card">
-          <div className="h2">日志</div>
-          <pre>{log.join('\n')}</pre>
+          <div className="h2">🐛 调试日志</div>
+          <div style={{background:'#1a1a1a', color:'#00ff00', padding:'16px', borderRadius:'8px', fontFamily:'monospace', fontSize:'12px', maxHeight:'300px', overflow:'auto'}}>
+            {log.slice(0, 20).map((entry, i) => (
+              <div key={i} style={{marginBottom:'4px'}}>
+                {entry}
+              </div>
+            ))}
+          </div>
+          <div style={{marginTop:'8px', fontSize:'12px', color:'#64748b'}}>
+            显示最近20条日志 · 总共{log.length}条
+          </div>
         </div>
-      )} */}
+      )}
     </div>
   )
 }
